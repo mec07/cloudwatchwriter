@@ -18,7 +18,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       - name: Coverage
-        run: go test -v -race -covermode=count -coverprofile=cover.out -timeout 10s ./...
+        run: go test -v -race -covermode=atomic -coverprofile=cover.out -timeout 10s ./...
       - name: Report coverage
         run: bash <(curl -s https://codecov.io/bash) -t 50f54c52-6302-41a7-a8f7-9835c21b53f6
       - name: golangci-lint
