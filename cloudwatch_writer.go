@@ -1,7 +1,6 @@
 package zerolog2cloudwatch
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -26,7 +25,6 @@ type CloudWatchWriter struct {
 
 // Write implements the io.Writer interface.
 func (c *CloudWatchWriter) Write(log []byte) (int, error) {
-	fmt.Println("WRITE")
 	var logEvents []*cloudwatchlogs.InputLogEvent
 	logEvents = append(logEvents, &cloudwatchlogs.InputLogEvent{
 		Message:   aws.String(string(log)),
