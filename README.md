@@ -64,3 +64,9 @@ if err != nil {
 consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
 logger := zerolog.New(zerolog.MultiLevelWriter(consoleWriter, cloudwatchWriter))
 ```
+
+
+## Acknowledgements
+Much thanks has to go to the creator of `zerolog` (https://github.com/rs/zerolog), for creating such a good logger.
+Thanks must go to the writer of `logrus-cloudwatchlogs` (https://github.com/kdar/logrus-cloudwatchlogs) as I found it a helpful resource for interfacing with `cloudwatchlogs`.
+Thanks also goes to the writer of this: https://gist.github.com/asdine/f821abe6189a04250ae61b77a3048bd9, which I also found helpful for extracting logs from `zerolog`.
