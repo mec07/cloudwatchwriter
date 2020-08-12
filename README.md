@@ -7,7 +7,13 @@ Package to enable sending logs from zerolog to AWS CloudWatch.
 If you want zerolog to send all logs to CloudWatch then do the following:
 ```
 import (
+    "fmt"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/mec07/zerolog2cloudwatch"
+    "github.com/rs/zerolog/log"
 )
 
 func setupLogs() error {
