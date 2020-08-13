@@ -34,21 +34,25 @@ const (
     logStreamName = "log-stream-name"
 )
 
-func setupZerolog(accessKeyID, secretKey string) error {
+// setupZerolog sets up the main zerolog logger to write to CloudWatch instead
+// of stdout. It returns an error or a function to gracefully shutdown the
+// CloudWatch writer.
+func setupZerolog(accessKeyID, secretKey string) (func(), error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(region),
 		Credentials: credentials.NewStaticCredentials(accessKeyID, secretKey, ""),
 	})
 	if err != nil {
-		return log.Logger, fmt.Errorf("session.NewSession: %w", err)
+		return nil, fmt.Errorf("session.NewSession: %w", err)
 	}
 
-	cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+	cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
 	if err != nil {
-		return log.Logger, fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
+		return nil, fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
 	}
 
-	log.Logger = log.Output(cloudwatchWriter)
+	log.Logger = log.Output(cloudWatchWriter)
+    return cloudWatchWriter.Close, nil
 }
 ```
 If you prefer to use AWS IAM credentials that are saved in the usual location on your computer then you don't have to specify the credentials, e.g.:
@@ -63,32 +67,44 @@ See the example directory for a working example.
 ### Write to CloudWatch and the console
 What I personally prefer is to write to both CloudWatch and the console, e.g.
 ```
-cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
 if err != nil {
     return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
 }
 consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
-log.Logger = log.Output(zerolog.MultiLevelWriter(consoleWriter, cloudwatchWriter))
+log.Logger = log.Output(zerolog.MultiLevelWriter(consoleWriter, cloudWatchWriter))
 ```
 
 ### Create a new zerolog Logger
 Of course, you can create a new `zerolog.Logger` using this too:
 ```
-cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
 if err != nil {
     return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
 }
-logger := zerolog.New(cloudwatchWriter).With().Timestamp().Logger()
+logger := zerolog.New(cloudWatchWriter).With().Timestamp().Logger()
 ```
 and of course you can create a new `zerolog.Logger` which can write to both CloudWatch and the console:
 ```
-cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
 if err != nil {
     return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
 }
 consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
-logger := zerolog.New(zerolog.MultiLevelWriter(consoleWriter, cloudwatchWriter)).With().Timestamp().Logger()
+logger := zerolog.New(zerolog.MultiLevelWriter(consoleWriter, cloudWatchWriter)).With().Timestamp().Logger()
 ```
+
+### Changing the default settings
+
+#### Batch frequency
+The logs are sent in batches because AWS has a maximum of 5 PutLogEvents requests per second per log stream (https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/cloudwatch_limits_cwl.html).
+The default value of the batch period is 5 seconds, which means it will send the a batch of logs at least once every 5 seconds.
+Batches of logs will be sent earlier if the logs exceed either 1MB (another AWS restriction) of data or 10,000 messages.
+To increase the batch frequency, you can set the time duration between batches to a smaller value, e.g. 1 second:
+```
+err := cloudWatchWriter.SetBatchDuration(time.Second)
+```
+If you set it below 200 milliseconds it will return an error.
 
 
 ## Acknowledgements
