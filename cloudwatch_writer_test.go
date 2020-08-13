@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/mec07/zerolog2cloudwatch"
 	"github.com/stretchr/testify/assert"
@@ -17,27 +18,55 @@ import (
 
 type mockClient struct {
 	sync.Mutex
-	logEvents []*cloudwatchlogs.InputLogEvent
+	logEvents     []*cloudwatchlogs.InputLogEvent
+	logGroupName  *string
+	logStreamName *string
 }
 
 func (c *mockClient) DescribeLogStreams(*cloudwatchlogs.DescribeLogStreamsInput) (*cloudwatchlogs.DescribeLogStreamsOutput, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.logGroupName == nil {
+		return nil, awserr.New(cloudwatchlogs.ErrCodeResourceNotFoundException, "blah", nil)
+	}
+
+	var streams []*cloudwatchlogs.LogStream
+	if c.logStreamName != nil {
+		streams = append(streams, &cloudwatchlogs.LogStream{
+			LogStreamName: c.logStreamName,
+		})
+	}
+
+	return &cloudwatchlogs.DescribeLogStreamsOutput{
+		LogStreams: streams,
+	}, nil
+}
+
+func (c *mockClient) CreateLogGroup(input *cloudwatchlogs.CreateLogGroupInput) (*cloudwatchlogs.CreateLogGroupOutput, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.logGroupName = input.LogGroupName
 	return nil, nil
 }
 
-func (c *mockClient) CreateLogGroup(*cloudwatchlogs.CreateLogGroupInput) (*cloudwatchlogs.CreateLogGroupOutput, error) {
-	return nil, nil
-}
+func (c *mockClient) CreateLogStream(input *cloudwatchlogs.CreateLogStreamInput) (*cloudwatchlogs.CreateLogStreamOutput, error) {
+	c.Lock()
+	defer c.Unlock()
 
-func (c *mockClient) CreateLogStream(*cloudwatchlogs.CreateLogStreamInput) (*cloudwatchlogs.CreateLogStreamOutput, error) {
+	c.logStreamName = input.LogStreamName
 	return nil, nil
 }
 
 func (c *mockClient) PutLogEvents(putLogEvents *cloudwatchlogs.PutLogEventsInput) (*cloudwatchlogs.PutLogEventsOutput, error) {
 	c.Lock()
 	defer c.Unlock()
+
 	if putLogEvents == nil {
 		return nil, errors.New("received nil *cloudwatchlogs.PutLogEventsInput")
 	}
+
 	c.logEvents = append(c.logEvents, putLogEvents.LogEvents...)
 	output := &cloudwatchlogs.PutLogEventsOutput{
 		NextSequenceToken: aws.String("next sequence token"),

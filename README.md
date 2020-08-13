@@ -3,34 +3,50 @@ Package to enable sending logs from zerolog to AWS CloudWatch.
 
 ## Usage
 
+This library assumes that you have IAM credentials to allow you to talk to AWS CloudWatch Logs.
+The specific permissions that are required are:
+- CreateLogGroup,
+- CreateLogStream,
+- DescribeLogStreams,
+- PutLogEvents.
+If you don't these permissions assigned to the user, this package will not work.
+The exception is if the log group already exists, then you don't need permission to CreateLogGroup.
+Similarly, if the log stream already exists, then you don't need permission to CreateLogStream (but it will have to be created at some point and probably by the logger).
+
 ### Standard use case
 If you want zerolog to send all logs to CloudWatch then do the following:
 ```
 import (
-    "fmt"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/mec07/zerolog2cloudwatch"
-    "github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/log"
 )
 
-func setupLogs() error {
-    sess, err := session.NewSession(session.Options{
-        Region:      aws.String(region),
-        Credentials: credentials.NewStaticCredentials(accessKeyID, secretKey, sessionToken),
-    })
-    if err != nil {
-        return fmt.Errorf("session.NewSession: %w", err)
-    }
+const (
+    region = "eu-west-2"
+    logGroupName = "log-group-name"
+    logStreamName = "log-stream-name"
+)
 
-    cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
-    if err != nil {
-        return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
-    }
+func setupZerolog(accessKeyID, secretKey string) error {
+	sess, err := session.NewSession(&aws.Config{
+		Region:      aws.String(region),
+		Credentials: credentials.NewStaticCredentials(accessKeyID, secretKey, ""),
+	})
+	if err != nil {
+		return log.Logger, fmt.Errorf("session.NewSession: %w", err)
+	}
 
-    log.Logger = log.Output(cloudwatchWriter)
+	cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+	if err != nil {
+		return log.Logger, fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
+	}
+
+	log.Logger = log.Output(cloudwatchWriter)
 }
 ```
 If you prefer to use AWS IAM credentials that are saved in the usual location on your computer then you don't have to specify the credentials, e.g.:
