@@ -18,9 +18,10 @@ import (
 
 type mockClient struct {
 	sync.RWMutex
-	logEvents     []*cloudwatchlogs.InputLogEvent
-	logGroupName  *string
-	logStreamName *string
+	putLogEventsShouldError bool
+	logEvents               []*cloudwatchlogs.InputLogEvent
+	logGroupName            *string
+	logStreamName           *string
 }
 
 func (c *mockClient) DescribeLogStreams(*cloudwatchlogs.DescribeLogStreamsInput) (*cloudwatchlogs.DescribeLogStreamsOutput, error) {
@@ -62,6 +63,9 @@ func (c *mockClient) CreateLogStream(input *cloudwatchlogs.CreateLogStreamInput)
 func (c *mockClient) PutLogEvents(putLogEvents *cloudwatchlogs.PutLogEventsInput) (*cloudwatchlogs.PutLogEventsOutput, error) {
 	c.Lock()
 	defer c.Unlock()
+	if c.putLogEventsShouldError {
+		return nil, errors.New("should error")
+	}
 
 	if putLogEvents == nil {
 		return nil, errors.New("received nil *cloudwatchlogs.PutLogEventsInput")
@@ -373,4 +377,36 @@ func TestCloudWatchWriterClose(t *testing.T) {
 
 	// The logs should have all come through now
 	assert.Equal(t, numLogs, client.numLogs())
+}
+
+func TestCloudWatchWriterReportError(t *testing.T) {
+	client := &mockClient{
+		putLogEventsShouldError: true,
+	}
+
+	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	if err != nil {
+		t.Fatalf("NewWriterWithClient: %v", err)
+	}
+	defer cloudWatchWriter.Close()
+
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
+
+	log1 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 1",
+		Filename: "filename",
+		Port:     666,
+	}
+
+	helperWriteLogs(t, cloudWatchWriter, log1)
+
+	// sleep until the batch should have been sent
+	time.Sleep(201 * time.Millisecond)
+
+	_, err = cloudWatchWriter.Write([]byte("hello world"))
+	if err == nil {
+		t.Fatal("expected the last error from PutLogEvents to appear here")
+	}
 }

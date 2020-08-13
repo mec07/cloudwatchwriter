@@ -21,10 +21,6 @@ const (
 	// batchSizeLimit is 1MB in bytes, the limit imposed by AWS CloudWatch Logs
 	// on the size the batch of logs we send.
 	batchSizeLimit = 1048576
-	// maxNumLogsToSend is the maximum number of logs to send to CloudWatch at
-	// once (primarily because any more than this will likely cause us to go
-	// over the 1MB batch limit.)
-	maxNumLogsToSend = 10000
 	// additionalBytesPerLogEvent is the number of additional bytes per log
 	// event, other than the length of the log message.
 	additionalBytesPerLogEvent = 36
@@ -109,6 +105,20 @@ func (c *CloudWatchWriter) getBatchInterval() time.Duration {
 	return c.batchInterval
 }
 
+func (c *CloudWatchWriter) setErr(err error) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.err = err
+}
+
+func (c *CloudWatchWriter) getErr() error {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.err
+}
+
 // Write implements the io.Writer interface.
 func (c *CloudWatchWriter) Write(log []byte) (int, error) {
 	event := &cloudwatchlogs.InputLogEvent{
@@ -119,9 +129,9 @@ func (c *CloudWatchWriter) Write(log []byte) (int, error) {
 	c.queue.Enqueue(event)
 
 	// report last sending error
-	if c.err != nil {
-		lastErr := c.err
-		c.err = nil
+	lastErr := c.getErr()
+	if lastErr != nil {
+		c.setErr(nil)
 		return 0, lastErr
 	}
 	return len(log), nil
@@ -187,7 +197,7 @@ func (c *CloudWatchWriter) sendBatch(batch []*cloudwatchlogs.InputLogEvent) {
 
 	output, err := c.client.PutLogEvents(input)
 	if err != nil {
-		c.err = err
+		c.setErr(err)
 		return
 	}
 	c.nextSequenceToken = output.NextSequenceToken
