@@ -182,6 +182,9 @@ func TestCloudWatchWriter(t *testing.T) {
 	}
 	defer cloudWatchWriter.Close()
 
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
+
 	log1 := exampleLog{
 		Time:     "2009-11-10T23:00:02.043123061Z",
 		Message:  "Test message 1",
@@ -225,7 +228,7 @@ func TestCloudWatchWriter(t *testing.T) {
 	assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
 }
 
-func TestCloudWatchWriterBatchDuration(t *testing.T) {
+func TestCloudWatchWriterBatchInterval(t *testing.T) {
 	client := &mockClient{}
 
 	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 5*time.Second, "logGroup", "logStream")
@@ -235,16 +238,19 @@ func TestCloudWatchWriterBatchDuration(t *testing.T) {
 	defer cloudWatchWriter.Close()
 
 	// can't set anything below 200 milliseconds
-	err = cloudWatchWriter.SetBatchDuration(199 * time.Millisecond)
+	err = cloudWatchWriter.SetBatchInterval(199 * time.Millisecond)
 	if err == nil {
 		t.Fatal("expected an error")
 	}
 
 	// setting it to a value greater than or equal to 200 is OK
-	err = cloudWatchWriter.SetBatchDuration(200 * time.Millisecond)
+	err = cloudWatchWriter.SetBatchInterval(200 * time.Millisecond)
 	if err != nil {
-		t.Fatalf("CloudWatchWriter.SetBatchDuration: %v", err)
+		t.Fatalf("CloudWatchWriter.SetBatchInterval: %v", err)
 	}
+
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
 
 	aLog := exampleLog{
 		Time:     "2009-11-10T23:00:02.043123061Z",
@@ -268,7 +274,7 @@ func TestCloudWatchWriterBatchDuration(t *testing.T) {
 	assert.Equal(t, 1, client.numLogs())
 }
 
-// Hit the 10,000 log limit to trigger an earlier batch
+// Hit the 1MB log limit to trigger an earlier batch
 func TestCloudWatchWriterBulk(t *testing.T) {
 	client := &mockClient{}
 
@@ -291,6 +297,9 @@ func TestCloudWatchWriterBulk(t *testing.T) {
 		logs.addLog(aLog)
 	}
 
+	// Main assertion is that we are triggering a batch early as we're sending so much data
+	assert.True(t, client.numLogs() > 0)
+
 	client.waitForLogs(numLogs, 200*time.Millisecond)
 
 	expectedLogs, err := logs.getLogEvents()
@@ -311,7 +320,7 @@ func TestCloudWatchWriterParallel(t *testing.T) {
 	defer cloudWatchWriter.Close()
 
 	logs := logsContainer{}
-	numLogs := 10000
+	numLogs := 8000
 	for i := 0; i < numLogs; i++ {
 		go func() {
 			aLog := exampleLog{
@@ -325,7 +334,7 @@ func TestCloudWatchWriterParallel(t *testing.T) {
 		}()
 	}
 
-	// allow for more time as there are a lot of goroutines to set off!
+	// allow more time as there are a lot of goroutines to set off!
 	client.waitForLogs(numLogs, time.Second)
 
 	expectedLogs, err := logs.getLogEvents()
@@ -336,4 +345,32 @@ func TestCloudWatchWriterParallel(t *testing.T) {
 	assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
 }
 
-// ADD TEST FOR CLOSE BLOCKING UNTIL THE QUEUE IS EMPTY
+func TestCloudWatchWriterClose(t *testing.T) {
+	client := &mockClient{}
+
+	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	if err != nil {
+		t.Fatalf("NewWriterWithClient: %v", err)
+	}
+	defer cloudWatchWriter.Close()
+
+	numLogs := 999
+	for i := 0; i < numLogs; i++ {
+		aLog := exampleLog{
+			Time:     "2009-11-10T23:00:02.043123061Z",
+			Message:  fmt.Sprintf("Test message %d", i),
+			Filename: "filename",
+			Port:     666,
+		}
+		helperWriteLogs(t, cloudWatchWriter, aLog)
+	}
+
+	// The logs shouldn't have come through yet
+	assert.Equal(t, 0, client.numLogs())
+
+	// Close should block until the queue is empty
+	cloudWatchWriter.Close()
+
+	// The logs should have all come through now
+	assert.Equal(t, numLogs, client.numLogs())
+}

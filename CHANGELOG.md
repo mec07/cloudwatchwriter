@@ -6,12 +6,12 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Changed
 
-- Now sends logs in batches with a default batch duration of 5 seconds.
+- Now sends logs in batches with a default batch interval of 5 seconds.
 
 ### Added
 
 - Added Close method to CloudWatchWriter which blocks until all the messages have been sent.
-- Added SetBatchDuration method which easily allows the user to change the batch duration.
+- Added SetBatchInterval method which easily allows the user to change the interval between sending batches of logs to CloudWatch.
 
 ## [0.0.1] - 2020-08-12
 

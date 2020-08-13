@@ -35,8 +35,8 @@ const (
 )
 
 // setupZerolog sets up the main zerolog logger to write to CloudWatch instead
-// of stdout. It returns an error or a function to gracefully shutdown the
-// CloudWatch writer.
+// of stdout. It returns an error or the CloudWatchWriter.Close method which
+// blocks until all the logs have been processed.
 func setupZerolog(accessKeyID, secretKey string) (func(), error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(region),
@@ -96,15 +96,17 @@ logger := zerolog.New(zerolog.MultiLevelWriter(consoleWriter, cloudWatchWriter))
 
 ### Changing the default settings
 
-#### Batch frequency
+#### Batch interval
 The logs are sent in batches because AWS has a maximum of 5 PutLogEvents requests per second per log stream (https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/cloudwatch_limits_cwl.html).
 The default value of the batch period is 5 seconds, which means it will send the a batch of logs at least once every 5 seconds.
-Batches of logs will be sent earlier if the logs exceed either 1MB (another AWS restriction) of data or 10,000 messages.
-To increase the batch frequency, you can set the time duration between batches to a smaller value, e.g. 1 second:
+Batches of logs will be sent earlier if the size of the collected logs exceeds 1MB (another AWS restriction).
+To change the batch frequency, you can set the time interval between batches to a smaller or larger value, e.g. 1 second:
 ```
-err := cloudWatchWriter.SetBatchDuration(time.Second)
+err := cloudWatchWriter.SetBatchInterval(time.Second)
 ```
 If you set it below 200 milliseconds it will return an error.
+This interval is not guaranteed as a long running request to CloudWatch could delay to the next batch.
+This is because CloudWatch expects to receive logs in sequence and not in parallel, so this has been written to send them in sequence.
 
 
 ## Acknowledgements

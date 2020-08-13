@@ -29,7 +29,9 @@ func main() {
 	}
 	defer close()
 
-	logger.Info().Str("name", "zerolog2cloudwatch").Msg("Log to test out this package")
+	for i := 0; i < 10000; i++ {
+		logger.Info().Str("name", "zerolog2cloudwatch").Msg(fmt.Sprintf("Log %d", i))
+	}
 }
 
 func newCloudWatchLogger(accessKeyID, secretKey string) (zerolog.Logger, func(), error) {
