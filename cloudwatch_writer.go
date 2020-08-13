@@ -82,7 +82,7 @@ func (c *CloudWatchWriter) Write(log []byte) (int, error) {
 // of the next sequence token. If the log group doesn't exist, then we create
 // it, if the log stream doesn't exist, then we create it.
 func (c *CloudWatchWriter) getOrCreateLogStream() (*cloudwatchlogs.LogStream, error) {
-	// Get the log streams that match our log group name and log group stream
+	// Get the log streams that match our log group name and log stream
 	output, err := c.client.DescribeLogStreams(&cloudwatchlogs.DescribeLogStreamsInput{
 		LogGroupName:        c.logGroupName,
 		LogStreamNamePrefix: c.logStreamName,

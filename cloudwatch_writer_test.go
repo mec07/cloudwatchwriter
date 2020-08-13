@@ -3,7 +3,6 @@ package zerolog2cloudwatch_test
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -78,10 +77,8 @@ func (c *mockClient) getLogEvents() []*cloudwatchlogs.InputLogEvent {
 	c.Lock()
 	defer c.Unlock()
 
-	fmt.Println("CLIENT LOG EVENTS: ", c.logEvents)
 	logEvents := make([]*cloudwatchlogs.InputLogEvent, len(c.logEvents))
 	copy(logEvents, c.logEvents)
-	fmt.Println("LOG EVENTS: ", logEvents)
 
 	return logEvents
 }
@@ -112,8 +109,9 @@ func helperMakeLogEvents(t *testing.T, logs ...interface{}) []*cloudwatchlogs.In
 			t.Fatalf("json.Marshal: %v", err)
 		}
 		logEvents = append(logEvents, &cloudwatchlogs.InputLogEvent{
-			Message:   aws.String(string(message)),
-			Timestamp: aws.Int64(time.Now().UTC().Unix()),
+			Message: aws.String(string(message)),
+			// Timestamps for CloudWatch Logs should be in milliseconds since the epoch.
+			Timestamp: aws.Int64(time.Now().UTC().UnixNano() / int64(time.Millisecond)),
 		})
 	}
 	return logEvents
