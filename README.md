@@ -53,7 +53,7 @@ func setupZerolog(accessKeyID, secretKey string) error {
 ```
 If you prefer to use AWS IAM credentials that are saved in the usual location on your computer then you don't have to specify the credentials, e.g.:
 ```
-sess, err := session.NewSession(session.Options{
+sess, err := session.NewSession(&aws.Config{
     Region:      aws.String(region),
 })
 ```
