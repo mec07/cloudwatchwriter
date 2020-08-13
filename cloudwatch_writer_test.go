@@ -88,15 +88,15 @@ func (c *mockClient) getLogEvents() []*cloudwatchlogs.InputLogEvent {
 	return logEvents
 }
 
-func (c *mockClient) waitForLogs(numberOfLogs int, timeout time.Duration) {
+func (c *mockClient) waitForLogs(numberOfLogs int, timeout time.Duration) error {
 	endTime := time.Now().Add(timeout)
 	for {
 		if c.numLogs() >= numberOfLogs {
-			return
+			return nil
 		}
 
 		if time.Now().After(endTime) {
-			return
+			return errors.New("ran out of time waiting for logs")
 		}
 
 		time.Sleep(time.Millisecond)
@@ -227,7 +227,9 @@ func TestCloudWatchWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client.waitForLogs(2, 201*time.Millisecond)
+	if err = client.waitForLogs(2, 201*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
 
 	assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
 }
@@ -304,7 +306,9 @@ func TestCloudWatchWriterBulk(t *testing.T) {
 	// Main assertion is that we are triggering a batch early as we're sending so much data
 	assert.True(t, client.numLogs() > 0)
 
-	client.waitForLogs(numLogs, 200*time.Millisecond)
+	if err = client.waitForLogs(numLogs, 200*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
 
 	expectedLogs, err := logs.getLogEvents()
 	if err != nil {
@@ -339,7 +343,9 @@ func TestCloudWatchWriterParallel(t *testing.T) {
 	}
 
 	// allow more time as there are a lot of goroutines to set off!
-	client.waitForLogs(numLogs, time.Second)
+	if err = client.waitForLogs(numLogs, 2*time.Second); err != nil {
+		t.Fatal(err)
+	}
 
 	expectedLogs, err := logs.getLogEvents()
 	if err != nil {

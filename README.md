@@ -52,9 +52,11 @@ func setupZerolog(accessKeyID, secretKey string) (func(), error) {
 	}
 
 	log.Logger = log.Output(cloudWatchWriter)
-    return cloudWatchWriter.Close, nil
+	return cloudWatchWriter.Close, nil
 }
 ```
+If you want to ensure that all your logs are sent to CloudWatch during the shut down sequence of your program then you can `defer` the `cloudWatchWriter.Close()` function in main.
+The `Close()` function blocks until all the logs have been processed.
 If you prefer to use AWS IAM credentials that are saved in the usual location on your computer then you don't have to specify the credentials, e.g.:
 ```
 sess, err := session.NewSession(&aws.Config{
