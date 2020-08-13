@@ -9,9 +9,11 @@ The specific permissions that are required are:
 - CreateLogStream,
 - DescribeLogStreams,
 - PutLogEvents.
-If you don't these permissions assigned to the user, this package will not work.
-The exception is if the log group already exists, then you don't need permission to CreateLogGroup.
-Similarly, if the log stream already exists, then you don't need permission to CreateLogStream (but it will have to be created at some point and probably by the logger).
+
+If these permissions aren't assigned to the user who's IAM credentials you're using then this package will not work.
+There are two exceptions to that:
+- if the log group already exists, then you don't need permission to CreateLogGroup;
+- if the log stream already exists, then you don't need permission to CreateLogStream.
 
 ### Standard use case
 If you want zerolog to send all logs to CloudWatch then do the following:
