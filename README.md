@@ -58,6 +58,7 @@ sess, err := session.NewSession(session.Options{
 })
 ```
 For more details, see: https://docs.aws.amazon.com/sdk-for-go/api/aws/session/.
+See the example directory for a working example.
 
 ### Write to CloudWatch and the console
 What I personally prefer is to write to both CloudWatch and the console, e.g.
@@ -77,7 +78,7 @@ cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStr
 if err != nil {
     return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
 }
-logger := zerolog.New(cloudwatchWriter)
+logger := zerolog.New(cloudwatchWriter).With().Timestamp().Logger()
 ```
 and of course you can create a new `zerolog.Logger` which can write to both CloudWatch and the console:
 ```
@@ -86,7 +87,7 @@ if err != nil {
     return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
 }
 consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
-logger := zerolog.New(zerolog.MultiLevelWriter(consoleWriter, cloudwatchWriter))
+logger := zerolog.New(zerolog.MultiLevelWriter(consoleWriter, cloudwatchWriter)).With().Timestamp().Logger()
 ```
 
 
