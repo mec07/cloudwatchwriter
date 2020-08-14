@@ -299,7 +299,7 @@ func TestCloudWatchWriterHit1MBLimit(t *testing.T) {
 		aLog := exampleLog{
 			Time:     "2009-11-10T23:00:02.043123061Z",
 			Message:  fmt.Sprintf("longggggggggggggggggggggggggggg test message %d", i),
-			Filename: "superlongfilenameblahblahblahblah.com",
+			Filename: "/home/deadpool/src/github.com/superlongfilenameblahblahblahblah.txt",
 			Port:     666,
 		}
 		helperWriteLogs(t, cloudWatchWriter, aLog)
