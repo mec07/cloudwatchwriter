@@ -364,7 +364,7 @@ func TestCloudWatchWriterClose(t *testing.T) {
 	}
 	defer cloudWatchWriter.Close()
 
-	numLogs := 999
+	numLogs := 99
 	for i := 0; i < numLogs; i++ {
 		aLog := exampleLog{
 			Time:     "2009-11-10T23:00:02.043123061Z",
