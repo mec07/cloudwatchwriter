@@ -7,14 +7,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/mec07/zerolog2cloudwatch"
+	"github.com/mec07/cloudwatchwriter"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
 const (
 	region        = "eu-west-2"
-	logGroupName  = "zerolog2cloudwatch"
+	logGroupName  = "cloudwatchwriter"
 	logStreamName = "this-computer"
 )
 
@@ -30,7 +30,7 @@ func main() {
 	defer close()
 
 	for i := 0; i < 10000; i++ {
-		logger.Info().Str("name", "zerolog2cloudwatch").Msg(fmt.Sprintf("Log %d", i))
+		logger.Info().Str("package", "cloudwatchwriter").Msg(fmt.Sprintf("Log %d", i))
 	}
 }
 
@@ -43,9 +43,9 @@ func newCloudWatchLogger(accessKeyID, secretKey string) (zerolog.Logger, func(),
 		return log.Logger, nil, fmt.Errorf("session.NewSession: %w", err)
 	}
 
-	cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+	cloudWatchWriter, err := cloudwatchwriter.New(sess, logGroupName, logStreamName)
 	if err != nil {
-		return log.Logger, nil, fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
+		return log.Logger, nil, fmt.Errorf("cloudwatchwriter.New: %w", err)
 	}
 
 	consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}

@@ -1,4 +1,4 @@
-module github.com/mec07/zerolog2cloudwatch
+module github.com/mec07/cloudwatchwriter
 
 go 1.14
 
