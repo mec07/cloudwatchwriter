@@ -19,11 +19,17 @@ const (
 	// defaultBatchInterval is 5 seconds.
 	defaultBatchInterval time.Duration = 5000000000
 	// batchSizeLimit is 1MB in bytes, the limit imposed by AWS CloudWatch Logs
-	// on the size the batch of logs we send.
+	// on the size the batch of logs we send, see:
+	// https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutLogEvents.html
 	batchSizeLimit = 1048576
+	// maxNumLogEvents is the maximum number of messages that can be sent in one
+	// batch, also an AWS limitation, see:
+	// https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutLogEvents.html
+	maxNumLogEvents = 10000
 	// additionalBytesPerLogEvent is the number of additional bytes per log
-	// event, other than the length of the log message.
-	additionalBytesPerLogEvent = 36
+	// event, other than the length of the log message, see:
+	// https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutLogEvents.html
+	additionalBytesPerLogEvent = 26
 )
 
 // CloudWatchLogsClient represents the AWS cloudwatchlogs client that we need to talk to CloudWatch
@@ -176,10 +182,18 @@ func (c *CloudWatchWriter) queueMonitor() {
 			c.sendBatch(batch)
 			batch = nil
 			batchSize = 0
+			nextSendTime = time.Now().Add(c.getBatchInterval())
 		}
 
 		batch = append(batch, logEvent)
 		batchSize += messageSize
+
+		if len(batch) >= maxNumLogEvents {
+			c.sendBatch(batch)
+			batch = nil
+			batchSize = 0
+			nextSendTime = time.Now().Add(c.getBatchInterval())
+		}
 	}
 }
 

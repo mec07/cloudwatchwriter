@@ -280,8 +280,8 @@ func TestCloudWatchWriterBatchInterval(t *testing.T) {
 	assert.Equal(t, 1, client.numLogs())
 }
 
-// Hit the 1MB log limit to trigger an earlier batch
-func TestCloudWatchWriterBulk(t *testing.T) {
+// Hit the 1MB limit on batch size of logs to trigger an earlier batch
+func TestCloudWatchWriterHit1MBLimit(t *testing.T) {
 	client := &mockClient{}
 
 	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
@@ -290,20 +290,24 @@ func TestCloudWatchWriterBulk(t *testing.T) {
 	}
 	defer cloudWatchWriter.Close()
 
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
+
 	logs := logsContainer{}
-	numLogs := 10000
+	numLogs := 9999
 	for i := 0; i < numLogs; i++ {
 		aLog := exampleLog{
 			Time:     "2009-11-10T23:00:02.043123061Z",
-			Message:  fmt.Sprintf("Test message %d", i),
-			Filename: "filename",
+			Message:  fmt.Sprintf("longggggggggggggggggggggggggggg test message %d", i),
+			Filename: "/home/deadpool/src/github.com/superlongfilenameblahblahblahblah.txt",
 			Port:     666,
 		}
 		helperWriteLogs(t, cloudWatchWriter, aLog)
 		logs.addLog(aLog)
 	}
 
-	// Main assertion is that we are triggering a batch early as we're sending so much data
+	// Main assertion is that we are triggering a batch early as we're sending
+	// so much data
 	assert.True(t, client.numLogs() > 0)
 
 	if err = client.waitForLogs(numLogs, 200*time.Millisecond); err != nil {
@@ -312,6 +316,48 @@ func TestCloudWatchWriterBulk(t *testing.T) {
 
 	expectedLogs, err := logs.getLogEvents()
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
+}
+
+// Hit the 10k limit on number of logs to trigger an earlier batch
+func TestCloudWatchWriterHit10kLimit(t *testing.T) {
+	client := &mockClient{}
+
+	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	if err != nil {
+		t.Fatalf("NewWriterWithClient: %v", err)
+	}
+	defer cloudWatchWriter.Close()
+
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
+
+	var expectedLogs []*cloudwatchlogs.InputLogEvent
+	numLogs := 10000
+	for i := 0; i < numLogs; i++ {
+		message := fmt.Sprintf("hello %d", i)
+		_, err = cloudWatchWriter.Write([]byte(message))
+		if err != nil {
+			t.Fatalf("cloudWatchWriter.Write: %v", err)
+		}
+		expectedLogs = append(expectedLogs, &cloudwatchlogs.InputLogEvent{
+			Message:   aws.String(message),
+			Timestamp: aws.Int64(time.Now().UTC().UnixNano() / int64(time.Millisecond)),
+		})
+	}
+
+	// give the queueMonitor goroutine time to catch-up (sleep is far less than
+	// the minimum of 200 milliseconds)
+	time.Sleep(10 * time.Millisecond)
+
+	// Main assertion is that we are triggering a batch early as we're sending
+	// so many logs
+	assert.True(t, client.numLogs() > 0)
+
+	if err = client.waitForLogs(numLogs, 200*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 
@@ -343,7 +389,7 @@ func TestCloudWatchWriterParallel(t *testing.T) {
 	}
 
 	// allow more time as there are a lot of goroutines to set off!
-	if err = client.waitForLogs(numLogs, 2*time.Second); err != nil {
+	if err = client.waitForLogs(numLogs, 4*time.Second); err != nil {
 		t.Fatal(err)
 	}
 
