@@ -389,7 +389,7 @@ func TestCloudWatchWriterParallel(t *testing.T) {
 	}
 
 	// allow more time as there are a lot of goroutines to set off!
-	if err = client.waitForLogs(numLogs, 2*time.Second); err != nil {
+	if err = client.waitForLogs(numLogs, 4*time.Second); err != nil {
 		t.Fatal(err)
 	}
 
