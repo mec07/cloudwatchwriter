@@ -290,6 +290,9 @@ func TestCloudWatchWriterHit1MBLimit(t *testing.T) {
 	}
 	defer cloudWatchWriter.Close()
 
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
+
 	logs := logsContainer{}
 	numLogs := 9999
 	for i := 0; i < numLogs; i++ {
@@ -329,11 +332,14 @@ func TestCloudWatchWriterHit10kLimit(t *testing.T) {
 	}
 	defer cloudWatchWriter.Close()
 
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
+
 	var expectedLogs []*cloudwatchlogs.InputLogEvent
 	numLogs := 10000
 	for i := 0; i < numLogs; i++ {
 		message := fmt.Sprintf("hello %d", i)
-		_, err = cloudWatchWriter.Write(message)
+		_, err = cloudWatchWriter.Write([]byte(message))
 		if err != nil {
 			t.Fatalf("cloudWatchWriter.Write: %v", err)
 		}
@@ -342,6 +348,10 @@ func TestCloudWatchWriterHit10kLimit(t *testing.T) {
 			Timestamp: aws.Int64(time.Now().UTC().UnixNano() / int64(time.Millisecond)),
 		})
 	}
+
+	// give the queueMonitor goroutine time to catch-up (sleep is far less than
+	// the minimum of 200 milliseconds)
+	time.Sleep(10 * time.Millisecond)
 
 	// Main assertion is that we are triggering a batch early as we're sending
 	// so many logs

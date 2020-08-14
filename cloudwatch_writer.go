@@ -27,8 +27,9 @@ const (
 	// https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutLogEvents.html
 	maxNumLogEvents = 10000
 	// additionalBytesPerLogEvent is the number of additional bytes per log
-	// event, other than the length of the log message.
-	additionalBytesPerLogEvent = 36
+	// event, other than the length of the log message, see:
+	// https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutLogEvents.html
+	additionalBytesPerLogEvent = 26
 )
 
 // CloudWatchLogsClient represents the AWS cloudwatchlogs client that we need to talk to CloudWatch
