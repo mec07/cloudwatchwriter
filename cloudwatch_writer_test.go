@@ -280,7 +280,7 @@ func TestCloudWatchWriterBatchInterval(t *testing.T) {
 	assert.Equal(t, 1, client.numLogs())
 }
 
-// Hit the 1MB log limit to trigger an earlier batch
+// Hit the limits on number of logs (10k & 1MB) to trigger an earlier batch
 func TestCloudWatchWriterBulk(t *testing.T) {
 	client := &mockClient{}
 

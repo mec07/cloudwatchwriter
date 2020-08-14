@@ -99,7 +99,7 @@ logger := zerolog.New(zerolog.MultiLevelWriter(consoleWriter, cloudWatchWriter))
 ### Changing the default settings
 
 #### Batch interval
-The logs are sent in batches because AWS has a maximum of 5 PutLogEvents requests per second per log stream (https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/cloudwatch_limits_cwl.html).
+The logs are sent in batches because AWS has a maximum of 5 PutLogEvents requests per second per log stream (https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutLogEvents.html).
 The default value of the batch period is 5 seconds, which means it will send the a batch of logs at least once every 5 seconds.
 Batches of logs will be sent earlier if the size of the collected logs exceeds 1MB (another AWS restriction).
 To change the batch frequency, you can set the time interval between batches to a smaller or larger value, e.g. 1 second:
