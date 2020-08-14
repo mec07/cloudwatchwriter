@@ -1,6 +1,7 @@
 package zerolog2cloudwatch
 
 import (
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -8,6 +9,21 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/pkg/errors"
+	"gopkg.in/oleiade/lane.v1"
+)
+
+const (
+	// minBatchInterval is 200 ms as the maximum rate of PutLogEvents is 5
+	// requests per second.
+	minBatchInterval time.Duration = 200000000
+	// defaultBatchInterval is 5 seconds.
+	defaultBatchInterval time.Duration = 5000000000
+	// batchSizeLimit is 1MB in bytes, the limit imposed by AWS CloudWatch Logs
+	// on the size the batch of logs we send.
+	batchSizeLimit = 1048576
+	// additionalBytesPerLogEvent is the number of additional bytes per log
+	// event, other than the length of the log message.
+	additionalBytesPerLogEvent = 36
 )
 
 // CloudWatchLogsClient represents the AWS cloudwatchlogs client that we need to talk to CloudWatch
@@ -20,61 +36,192 @@ type CloudWatchLogsClient interface {
 
 // CloudWatchWriter can be inserted into zerolog to send logs to CloudWatch.
 type CloudWatchWriter struct {
-	client        CloudWatchLogsClient
-	logGroupName  *string
-	logStreamName *string
-	sequenceToken *string
+	sync.RWMutex
+	client            CloudWatchLogsClient
+	batchInterval     time.Duration
+	queue             *lane.Queue
+	err               error
+	logGroupName      *string
+	logStreamName     *string
+	nextSequenceToken *string
+	closing           bool
+	done              chan struct{}
 }
 
 // NewWriter returns a pointer to a CloudWatchWriter struct, or an error.
 func NewWriter(sess *session.Session, logGroupName, logStreamName string) (*CloudWatchWriter, error) {
-	return NewWriterWithClient(cloudwatchlogs.New(sess), logGroupName, logStreamName)
+	return NewWriterWithClient(cloudwatchlogs.New(sess), defaultBatchInterval, logGroupName, logStreamName)
 }
 
-// NewWriterWithClient returns a pointer to a CloudWatchWriter struct, or an error.
-func NewWriterWithClient(client CloudWatchLogsClient, logGroupName, logStreamName string) (*CloudWatchWriter, error) {
+// NewWriterWithClient returns a pointer to a CloudWatchWriter struct, or an
+// error.
+func NewWriterWithClient(client CloudWatchLogsClient, batchInterval time.Duration, logGroupName, logStreamName string) (*CloudWatchWriter, error) {
 	writer := &CloudWatchWriter{
 		client:        client,
+		queue:         lane.NewQueue(),
 		logGroupName:  aws.String(logGroupName),
 		logStreamName: aws.String(logStreamName),
+		done:          make(chan struct{}),
+	}
+
+	err := writer.SetBatchInterval(batchInterval)
+	if err != nil {
+		return nil, errors.Wrapf(err, "set batch interval: %v", batchInterval)
 	}
 
 	logStream, err := writer.getOrCreateLogStream()
 	if err != nil {
 		return nil, err
 	}
+	writer.nextSequenceToken = logStream.UploadSequenceToken
 
-	writer.sequenceToken = logStream.UploadSequenceToken
+	go writer.queueMonitor()
 
 	return writer, nil
 }
 
+// SetBatchInterval sets the maximum time between batches of logs sent to
+// CloudWatch.
+func (c *CloudWatchWriter) SetBatchInterval(interval time.Duration) error {
+	if interval < minBatchInterval {
+		return errors.New("supplied batch interval is less than the minimum")
+	}
+
+	c.setBatchInterval(interval)
+	return nil
+}
+
+func (c *CloudWatchWriter) setBatchInterval(interval time.Duration) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.batchInterval = interval
+}
+
+func (c *CloudWatchWriter) getBatchInterval() time.Duration {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.batchInterval
+}
+
+func (c *CloudWatchWriter) setErr(err error) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.err = err
+}
+
+func (c *CloudWatchWriter) getErr() error {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.err
+}
+
 // Write implements the io.Writer interface.
 func (c *CloudWatchWriter) Write(log []byte) (int, error) {
-	var logEvents []*cloudwatchlogs.InputLogEvent
-	logEvents = append(logEvents, &cloudwatchlogs.InputLogEvent{
+	event := &cloudwatchlogs.InputLogEvent{
 		Message: aws.String(string(log)),
 		// Timestamp has to be in milliseconds since the epoch
 		Timestamp: aws.Int64(time.Now().UTC().UnixNano() / int64(time.Millisecond)),
-	})
+	}
+	c.queue.Enqueue(event)
+
+	// report last sending error
+	lastErr := c.getErr()
+	if lastErr != nil {
+		c.setErr(nil)
+		return 0, lastErr
+	}
+	return len(log), nil
+}
+
+func (c *CloudWatchWriter) queueMonitor() {
+	var batch []*cloudwatchlogs.InputLogEvent
+	batchSize := 0
+	nextSendTime := time.Now().Add(c.getBatchInterval())
+
+	for {
+		if time.Now().After(nextSendTime) {
+			c.sendBatch(batch)
+			batch = nil
+			batchSize = 0
+			nextSendTime.Add(c.getBatchInterval())
+		}
+
+		item := c.queue.Dequeue()
+		if item == nil {
+			// Empty queue, means no logs to process
+			if c.isClosing() && batch == nil {
+				// at this point we've processed all the logs and can safely
+				// close.
+				close(c.done)
+				return
+			}
+			time.Sleep(time.Millisecond)
+			continue
+		}
+
+		logEvent, ok := item.(*cloudwatchlogs.InputLogEvent)
+		if !ok || logEvent.Message == nil {
+			// This should not happen!
+			continue
+		}
+
+		messageSize := len(*logEvent.Message) + additionalBytesPerLogEvent
+		// Send the batch before adding the next message, if the message would
+		// push it over the 1MB limit on batch size.
+		if batchSize+messageSize > batchSizeLimit {
+			c.sendBatch(batch)
+			batch = nil
+			batchSize = 0
+		}
+
+		batch = append(batch, logEvent)
+		batchSize += messageSize
+	}
+}
+
+func (c *CloudWatchWriter) sendBatch(batch []*cloudwatchlogs.InputLogEvent) {
+	if len(batch) == 0 {
+		return
+	}
 
 	input := &cloudwatchlogs.PutLogEventsInput{
-		LogEvents:     logEvents,
+		LogEvents:     batch,
 		LogGroupName:  c.logGroupName,
 		LogStreamName: c.logStreamName,
-		SequenceToken: c.sequenceToken,
+		SequenceToken: c.nextSequenceToken,
 	}
 
-	resp, err := c.client.PutLogEvents(input)
+	output, err := c.client.PutLogEvents(input)
 	if err != nil {
-		return 0, errors.Wrap(err, "cloudwatchlogs.Client.PutLogEvents")
+		c.setErr(err)
+		return
 	}
+	c.nextSequenceToken = output.NextSequenceToken
+}
 
-	if resp != nil {
-		c.sequenceToken = resp.NextSequenceToken
-	}
+// Close blocks until the writer has completed writing the logs to CloudWatch.
+func (c *CloudWatchWriter) Close() {
+	c.setClosing()
+	// block until the done channel is closed
+	<-c.done
+}
 
-	return len(log), nil
+func (c *CloudWatchWriter) isClosing() bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.closing
+}
+
+func (c *CloudWatchWriter) setClosing() {
+	c.Lock()
+	defer c.Unlock()
+
+	c.closing = true
 }
 
 // getOrCreateLogStream gets info on the log stream for the log group and log

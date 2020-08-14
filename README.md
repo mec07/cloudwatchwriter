@@ -34,23 +34,29 @@ const (
     logStreamName = "log-stream-name"
 )
 
-func setupZerolog(accessKeyID, secretKey string) error {
+// setupZerolog sets up the main zerolog logger to write to CloudWatch instead
+// of stdout. It returns an error or the CloudWatchWriter.Close method which
+// blocks until all the logs have been processed.
+func setupZerolog(accessKeyID, secretKey string) (func(), error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(region),
 		Credentials: credentials.NewStaticCredentials(accessKeyID, secretKey, ""),
 	})
 	if err != nil {
-		return log.Logger, fmt.Errorf("session.NewSession: %w", err)
+		return nil, fmt.Errorf("session.NewSession: %w", err)
 	}
 
-	cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+	cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
 	if err != nil {
-		return log.Logger, fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
+		return nil, fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
 	}
 
-	log.Logger = log.Output(cloudwatchWriter)
+	log.Logger = log.Output(cloudWatchWriter)
+	return cloudWatchWriter.Close, nil
 }
 ```
+If you want to ensure that all your logs are sent to CloudWatch during the shut down sequence of your program then you can `defer` the `cloudWatchWriter.Close()` function in main.
+The `Close()` function blocks until all the logs have been processed.
 If you prefer to use AWS IAM credentials that are saved in the usual location on your computer then you don't have to specify the credentials, e.g.:
 ```
 sess, err := session.NewSession(&aws.Config{
@@ -63,32 +69,46 @@ See the example directory for a working example.
 ### Write to CloudWatch and the console
 What I personally prefer is to write to both CloudWatch and the console, e.g.
 ```
-cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
 if err != nil {
     return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
 }
 consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
-log.Logger = log.Output(zerolog.MultiLevelWriter(consoleWriter, cloudwatchWriter))
+log.Logger = log.Output(zerolog.MultiLevelWriter(consoleWriter, cloudWatchWriter))
 ```
 
 ### Create a new zerolog Logger
 Of course, you can create a new `zerolog.Logger` using this too:
 ```
-cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
 if err != nil {
     return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
 }
-logger := zerolog.New(cloudwatchWriter).With().Timestamp().Logger()
+logger := zerolog.New(cloudWatchWriter).With().Timestamp().Logger()
 ```
 and of course you can create a new `zerolog.Logger` which can write to both CloudWatch and the console:
 ```
-cloudwatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
 if err != nil {
     return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
 }
 consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
-logger := zerolog.New(zerolog.MultiLevelWriter(consoleWriter, cloudwatchWriter)).With().Timestamp().Logger()
+logger := zerolog.New(zerolog.MultiLevelWriter(consoleWriter, cloudWatchWriter)).With().Timestamp().Logger()
 ```
+
+### Changing the default settings
+
+#### Batch interval
+The logs are sent in batches because AWS has a maximum of 5 PutLogEvents requests per second per log stream (https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/cloudwatch_limits_cwl.html).
+The default value of the batch period is 5 seconds, which means it will send the a batch of logs at least once every 5 seconds.
+Batches of logs will be sent earlier if the size of the collected logs exceeds 1MB (another AWS restriction).
+To change the batch frequency, you can set the time interval between batches to a smaller or larger value, e.g. 1 second:
+```
+err := cloudWatchWriter.SetBatchInterval(time.Second)
+```
+If you set it below 200 milliseconds it will return an error.
+This interval is not guaranteed as a long running request to CloudWatch could delay to the next batch.
+This is because CloudWatch expects to receive logs in sequence and not in parallel, so this has been written to send them in sequence.
 
 
 ## Acknowledgements
