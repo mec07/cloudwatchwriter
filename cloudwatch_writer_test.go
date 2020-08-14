@@ -1,4 +1,4 @@
-package zerolog2cloudwatch_test
+package cloudwatchwriter_test
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
-	"github.com/mec07/zerolog2cloudwatch"
+	"github.com/mec07/cloudwatchwriter"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -180,9 +180,9 @@ func assertEqualLogMessages(t *testing.T, expectedLogs []*cloudwatchlogs.InputLo
 func TestCloudWatchWriter(t *testing.T) {
 	client := &mockClient{}
 
-	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
 	if err != nil {
-		t.Fatalf("NewWriterWithClient: %v", err)
+		t.Fatalf("NewWithClient: %v", err)
 	}
 	defer cloudWatchWriter.Close()
 
@@ -237,9 +237,9 @@ func TestCloudWatchWriter(t *testing.T) {
 func TestCloudWatchWriterBatchInterval(t *testing.T) {
 	client := &mockClient{}
 
-	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 5*time.Second, "logGroup", "logStream")
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 5*time.Second, "logGroup", "logStream")
 	if err != nil {
-		t.Fatalf("NewWriterWithClient: %v", err)
+		t.Fatalf("NewWithClient: %v", err)
 	}
 	defer cloudWatchWriter.Close()
 
@@ -284,9 +284,9 @@ func TestCloudWatchWriterBatchInterval(t *testing.T) {
 func TestCloudWatchWriterHit1MBLimit(t *testing.T) {
 	client := &mockClient{}
 
-	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
 	if err != nil {
-		t.Fatalf("NewWriterWithClient: %v", err)
+		t.Fatalf("NewWithClient: %v", err)
 	}
 	defer cloudWatchWriter.Close()
 
@@ -326,9 +326,9 @@ func TestCloudWatchWriterHit1MBLimit(t *testing.T) {
 func TestCloudWatchWriterHit10kLimit(t *testing.T) {
 	client := &mockClient{}
 
-	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
 	if err != nil {
-		t.Fatalf("NewWriterWithClient: %v", err)
+		t.Fatalf("NewWithClient: %v", err)
 	}
 	defer cloudWatchWriter.Close()
 
@@ -367,9 +367,9 @@ func TestCloudWatchWriterHit10kLimit(t *testing.T) {
 func TestCloudWatchWriterParallel(t *testing.T) {
 	client := &mockClient{}
 
-	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
 	if err != nil {
-		t.Fatalf("NewWriterWithClient: %v", err)
+		t.Fatalf("NewWithClient: %v", err)
 	}
 	defer cloudWatchWriter.Close()
 
@@ -404,9 +404,9 @@ func TestCloudWatchWriterParallel(t *testing.T) {
 func TestCloudWatchWriterClose(t *testing.T) {
 	client := &mockClient{}
 
-	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
 	if err != nil {
-		t.Fatalf("NewWriterWithClient: %v", err)
+		t.Fatalf("NewWithClient: %v", err)
 	}
 	defer cloudWatchWriter.Close()
 
@@ -436,9 +436,9 @@ func TestCloudWatchWriterReportError(t *testing.T) {
 		putLogEventsShouldError: true,
 	}
 
-	cloudWatchWriter, err := zerolog2cloudwatch.NewWriterWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
 	if err != nil {
-		t.Fatalf("NewWriterWithClient: %v", err)
+		t.Fatalf("NewWithClient: %v", err)
 	}
 	defer cloudWatchWriter.Close()
 

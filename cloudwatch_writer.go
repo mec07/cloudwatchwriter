@@ -1,4 +1,4 @@
-package zerolog2cloudwatch
+package cloudwatchwriter
 
 import (
 	"sync"
@@ -54,14 +54,13 @@ type CloudWatchWriter struct {
 	done              chan struct{}
 }
 
-// NewWriter returns a pointer to a CloudWatchWriter struct, or an error.
-func NewWriter(sess *session.Session, logGroupName, logStreamName string) (*CloudWatchWriter, error) {
-	return NewWriterWithClient(cloudwatchlogs.New(sess), defaultBatchInterval, logGroupName, logStreamName)
+// New returns a pointer to a CloudWatchWriter struct, or an error.
+func New(sess *session.Session, logGroupName, logStreamName string) (*CloudWatchWriter, error) {
+	return NewWithClient(cloudwatchlogs.New(sess), defaultBatchInterval, logGroupName, logStreamName)
 }
 
-// NewWriterWithClient returns a pointer to a CloudWatchWriter struct, or an
-// error.
-func NewWriterWithClient(client CloudWatchLogsClient, batchInterval time.Duration, logGroupName, logStreamName string) (*CloudWatchWriter, error) {
+// NewWithClient returns a pointer to a CloudWatchWriter struct, or an error.
+func NewWithClient(client CloudWatchLogsClient, batchInterval time.Duration, logGroupName, logStreamName string) (*CloudWatchWriter, error) {
 	writer := &CloudWatchWriter{
 		client:        client,
 		queue:         lane.NewQueue(),

@@ -1,4 +1,4 @@
-# zerolog2cloudwatch
+# cloudwatchwriter
 Package to enable sending logs from zerolog to AWS CloudWatch.
 
 ## Usage
@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/mec07/zerolog2cloudwatch"
+	"github.com/mec07/cloudwatchwriter"
 	"github.com/rs/zerolog/log"
 )
 
@@ -46,9 +46,9 @@ func setupZerolog(accessKeyID, secretKey string) (func(), error) {
 		return nil, fmt.Errorf("session.NewSession: %w", err)
 	}
 
-	cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+	cloudWatchWriter, err := cloudwatchwriter.NewWriter(sess, logGroupName, logStreamName)
 	if err != nil {
-		return nil, fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
+		return nil, fmt.Errorf("cloudwatchwriter.NewWriter: %w", err)
 	}
 
 	log.Logger = log.Output(cloudWatchWriter)
@@ -69,9 +69,9 @@ See the example directory for a working example.
 ### Write to CloudWatch and the console
 What I personally prefer is to write to both CloudWatch and the console, e.g.
 ```
-cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+cloudWatchWriter, err := cloudwatchwriter.NewWriter(sess, logGroupName, logStreamName)
 if err != nil {
-    return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
+    return fmt.Errorf("cloudwatchwriter.NewWriter: %w", err)
 }
 consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
 log.Logger = log.Output(zerolog.MultiLevelWriter(consoleWriter, cloudWatchWriter))
@@ -80,17 +80,17 @@ log.Logger = log.Output(zerolog.MultiLevelWriter(consoleWriter, cloudWatchWriter
 ### Create a new zerolog Logger
 Of course, you can create a new `zerolog.Logger` using this too:
 ```
-cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+cloudWatchWriter, err := cloudwatchwriter.NewWriter(sess, logGroupName, logStreamName)
 if err != nil {
-    return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
+    return fmt.Errorf("cloudwatchwriter.NewWriter: %w", err)
 }
 logger := zerolog.New(cloudWatchWriter).With().Timestamp().Logger()
 ```
 and of course you can create a new `zerolog.Logger` which can write to both CloudWatch and the console:
 ```
-cloudWatchWriter, err := zerolog2cloudwatch.NewWriter(sess, logGroupName, logStreamName)
+cloudWatchWriter, err := cloudwatchwriter.NewWriter(sess, logGroupName, logStreamName)
 if err != nil {
-    return fmt.Errorf("zerolog2cloudwatch.NewWriter: %w", err)
+    return fmt.Errorf("cloudwatchwriter.NewWriter: %w", err)
 }
 consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
 logger := zerolog.New(zerolog.MultiLevelWriter(consoleWriter, cloudWatchWriter)).With().Timestamp().Logger()
