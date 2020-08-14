@@ -310,7 +310,7 @@ func TestCloudWatchWriterHit1MBLimit(t *testing.T) {
 	// so much data
 	assert.True(t, client.numLogs() > 0)
 
-	if err = client.waitForLogs(numLogs, 200*time.Millisecond); err != nil {
+	if err = client.waitForLogs(numLogs, 400*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 
