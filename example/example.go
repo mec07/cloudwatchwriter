@@ -45,7 +45,7 @@ func newCloudWatchLogger(accessKeyID, secretKey string) (zerolog.Logger, func(),
 
 	cloudWatchWriter, err := cloudwatchwriter.New(sess, logGroupName, logStreamName)
 	if err != nil {
-		return log.Logger, nil, fmt.Errorf("cloudwatchwriter.NewWriter: %w", err)
+		return log.Logger, nil, fmt.Errorf("cloudwatchwriter.New: %w", err)
 	}
 
 	consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
