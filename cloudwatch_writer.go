@@ -158,8 +158,9 @@ func (c *CloudWatchWriter) queueMonitor() {
 		item := c.queue.Dequeue()
 		if item == nil {
 			// Empty queue, means no logs to process
-			if c.isClosing() && batch == nil {
-				// at this point we've processed all the logs and can safely
+			if c.isClosing() {
+				c.sendBatch(batch)
+				// At this point we've processed all the logs and can safely
 				// close.
 				close(c.done)
 				return

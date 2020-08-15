@@ -107,9 +107,9 @@ To change the batch frequency, you can set the time interval between batches to 
 err := cloudWatchWriter.SetBatchInterval(time.Second)
 ```
 If you set it below 200 milliseconds it will return an error.
-This interval is not guaranteed as a long running request to CloudWatch could delay to the next batch.
-This is because CloudWatch expects to receive logs in sequence and not in parallel, so this has been written to send them in sequence.
-
+The batch interval is not guaranteed as two things can alter how often the batches get delivered:
+- as soon as 1MB of logs or 10k logs have accumulated, they are sent (due to AWS restrictions on batch size);
+- we have to send the batches in sequence (an AWS restriction) so a long running request to CloudWatch can delay the next batch.
 
 ## Acknowledgements
 Much thanks has to go to the creator of `zerolog` (https://github.com/rs/zerolog), for creating such a good logger.
