@@ -131,6 +131,13 @@ func (c *CloudWatchWriter) setNextSequenceToken(next *string) {
 	c.nextSequenceToken = next
 }
 
+func (c *CloudWatchWriter) getNextSequenceToken() *string {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.nextSequenceToken
+}
+
 // Write implements the io.Writer interface.
 func (c *CloudWatchWriter) Write(log []byte) (int, error) {
 	event := &cloudwatchlogs.InputLogEvent{
@@ -213,7 +220,7 @@ func (c *CloudWatchWriter) sendBatch(batch []*cloudwatchlogs.InputLogEvent) {
 		LogEvents:     batch,
 		LogGroupName:  c.logGroupName,
 		LogStreamName: c.logStreamName,
-		SequenceToken: c.nextSequenceToken,
+		SequenceToken: c.getNextSequenceToken(),
 	}
 
 	output, err := c.client.PutLogEvents(input)

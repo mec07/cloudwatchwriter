@@ -16,12 +16,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const sequenceToken = "next-sequence-token"
+
 type mockClient struct {
 	sync.RWMutex
 	putLogEventsShouldError bool
 	logEvents               []*cloudwatchlogs.InputLogEvent
 	logGroupName            *string
 	logStreamName           *string
+	expectedSequenceToken   *string
 }
 
 func (c *mockClient) DescribeLogStreams(*cloudwatchlogs.DescribeLogStreamsInput) (*cloudwatchlogs.DescribeLogStreamsOutput, error) {
@@ -35,7 +38,8 @@ func (c *mockClient) DescribeLogStreams(*cloudwatchlogs.DescribeLogStreamsInput)
 	var streams []*cloudwatchlogs.LogStream
 	if c.logStreamName != nil {
 		streams = append(streams, &cloudwatchlogs.LogStream{
-			LogStreamName: c.logStreamName,
+			LogStreamName:       c.logStreamName,
+			UploadSequenceToken: c.expectedSequenceToken,
 		})
 	}
 
@@ -71,9 +75,22 @@ func (c *mockClient) PutLogEvents(putLogEvents *cloudwatchlogs.PutLogEventsInput
 		return nil, errors.New("received nil *cloudwatchlogs.PutLogEventsInput")
 	}
 
+	// At the first PutLogEvents c.expectedSequenceToken should be nil, as we
+	// set it in this call. If it is not nil then we can compare the received
+	// sequence token and the expected one.
+	if c.expectedSequenceToken != nil {
+		if putLogEvents.SequenceToken == nil || *putLogEvents.SequenceToken != *c.expectedSequenceToken {
+			return nil, &cloudwatchlogs.InvalidSequenceTokenException{
+				ExpectedSequenceToken: c.expectedSequenceToken,
+			}
+		}
+	} else {
+		c.expectedSequenceToken = aws.String(sequenceToken)
+	}
+
 	c.logEvents = append(c.logEvents, putLogEvents.LogEvents...)
 	output := &cloudwatchlogs.PutLogEventsOutput{
-		NextSequenceToken: aws.String("next sequence token"),
+		NextSequenceToken: c.expectedSequenceToken,
 	}
 	return output, nil
 }
@@ -86,6 +103,13 @@ func (c *mockClient) getLogEvents() []*cloudwatchlogs.InputLogEvent {
 	copy(logEvents, c.logEvents)
 
 	return logEvents
+}
+
+func (c *mockClient) setExpectedSequenceToken(token *string) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.expectedSequenceToken = token
 }
 
 func (c *mockClient) waitForLogs(numberOfLogs int, timeout time.Duration) error {
@@ -461,4 +485,46 @@ func TestCloudWatchWriterReportError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected the last error from PutLogEvents to appear here")
 	}
+}
+
+func TestCloudWatchWriterReceiveInvalidSequenceTokenException(t *testing.T) {
+	// Setup
+	client := &mockClient{}
+
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	if err != nil {
+		t.Fatalf("NewWithClient: %v", err)
+	}
+	defer cloudWatchWriter.Close()
+
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
+
+	// At this point the cloudWatchWriter should have the normal sequence token.
+	// So we change the mock cloudwatch client to expect a different sequence
+	// token:
+	client.setExpectedSequenceToken(aws.String("new sequence token"))
+
+	// Action
+	logs := logsContainer{}
+	log := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 1",
+		Filename: "filename",
+		Port:     666,
+	}
+
+	helperWriteLogs(t, cloudWatchWriter, log)
+	logs.addLog(log)
+
+	// Result
+	if err = client.waitForLogs(1, 201*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	expectedLogs, err := logs.getLogEvents()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
 }
