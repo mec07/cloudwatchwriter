@@ -78,7 +78,7 @@ func NewWithClient(client CloudWatchLogsClient, batchInterval time.Duration, log
 	if err != nil {
 		return nil, err
 	}
-	writer.nextSequenceToken = logStream.UploadSequenceToken
+	writer.setNextSequenceToken(logStream.UploadSequenceToken)
 
 	go writer.queueMonitor()
 
@@ -122,6 +122,13 @@ func (c *CloudWatchWriter) getErr() error {
 	defer c.RUnlock()
 
 	return c.err
+}
+
+func (c *CloudWatchWriter) setNextSequenceToken(next *string) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.nextSequenceToken = next
 }
 
 // Write implements the io.Writer interface.
@@ -211,10 +218,15 @@ func (c *CloudWatchWriter) sendBatch(batch []*cloudwatchlogs.InputLogEvent) {
 
 	output, err := c.client.PutLogEvents(input)
 	if err != nil {
+		if invalidSequenceTokenErr, ok := err.(*cloudwatchlogs.InvalidSequenceTokenException); ok {
+			c.setNextSequenceToken(invalidSequenceTokenErr.ExpectedSequenceToken)
+			c.sendBatch(batch)
+			return
+		}
 		c.setErr(err)
 		return
 	}
-	c.nextSequenceToken = output.NextSequenceToken
+	c.setNextSequenceToken(output.NextSequenceToken)
 }
 
 // Close blocks until the writer has completed writing the logs to CloudWatch.
