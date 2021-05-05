@@ -213,11 +213,7 @@ func (c *CloudWatchWriter) queueMonitor() {
 
 // Only allow 1 retry of an invalid sequence token.
 func (c *CloudWatchWriter) sendBatch(batch []*cloudwatchlogs.InputLogEvent, retryNum int) {
-	if retryNum > 1 {
-		return
-	}
-
-	if len(batch) == 0 {
+	if retryNum > 1 || len(batch) == 0 {
 		return
 	}
 
