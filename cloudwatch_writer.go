@@ -163,7 +163,7 @@ func (c *CloudWatchWriter) queueMonitor() {
 
 	for {
 		if time.Now().After(nextSendTime) {
-			c.sendBatch(batch)
+			c.sendBatch(batch, 0)
 			batch = nil
 			batchSize = 0
 			nextSendTime.Add(c.getBatchInterval())
@@ -173,7 +173,7 @@ func (c *CloudWatchWriter) queueMonitor() {
 		if item == nil {
 			// Empty queue, means no logs to process
 			if c.isClosing() {
-				c.sendBatch(batch)
+				c.sendBatch(batch, 0)
 				// At this point we've processed all the logs and can safely
 				// close.
 				close(c.done)
@@ -193,7 +193,7 @@ func (c *CloudWatchWriter) queueMonitor() {
 		// Send the batch before adding the next message, if the message would
 		// push it over the 1MB limit on batch size.
 		if batchSize+messageSize > batchSizeLimit {
-			c.sendBatch(batch)
+			c.sendBatch(batch, 0)
 			batch = nil
 			batchSize = 0
 			nextSendTime = time.Now().Add(c.getBatchInterval())
@@ -203,7 +203,7 @@ func (c *CloudWatchWriter) queueMonitor() {
 		batchSize += messageSize
 
 		if len(batch) >= maxNumLogEvents {
-			c.sendBatch(batch)
+			c.sendBatch(batch, 0)
 			batch = nil
 			batchSize = 0
 			nextSendTime = time.Now().Add(c.getBatchInterval())
@@ -211,7 +211,12 @@ func (c *CloudWatchWriter) queueMonitor() {
 	}
 }
 
-func (c *CloudWatchWriter) sendBatch(batch []*cloudwatchlogs.InputLogEvent) {
+// Only allow 1 retry of an invalid sequence token.
+func (c *CloudWatchWriter) sendBatch(batch []*cloudwatchlogs.InputLogEvent, retryNum int) {
+	if retryNum > 1 {
+		return
+	}
+
 	if len(batch) == 0 {
 		return
 	}
@@ -227,7 +232,7 @@ func (c *CloudWatchWriter) sendBatch(batch []*cloudwatchlogs.InputLogEvent) {
 	if err != nil {
 		if invalidSequenceTokenErr, ok := err.(*cloudwatchlogs.InvalidSequenceTokenException); ok {
 			c.setNextSequenceToken(invalidSequenceTokenErr.ExpectedSequenceToken)
-			c.sendBatch(batch)
+			c.sendBatch(batch, retryNum+1)
 			return
 		}
 		c.setErr(err)
