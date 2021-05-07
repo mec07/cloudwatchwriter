@@ -22,6 +22,6 @@ jobs:
       - name: Report coverage
         run: bash <(curl -s https://codecov.io/bash) -t 50f54c52-6302-41a7-a8f7-9835c21b53f6
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v1
+        uses: golangci/golangci-lint-action@v2.3.0
         with:
-          version: v1.27
+          version: v1.35
