@@ -1,6 +1,7 @@
 package cloudwatchwriter
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -52,6 +53,7 @@ type CloudWatchWriter struct {
 	nextSequenceToken *string
 	closing           bool
 	done              chan struct{}
+	errorHandler      func(error)
 }
 
 // New returns a pointer to a CloudWatchWriter struct, or an error.
@@ -89,11 +91,17 @@ func NewWithClient(client CloudWatchLogsClient, batchInterval time.Duration, log
 // CloudWatch.
 func (c *CloudWatchWriter) SetBatchInterval(interval time.Duration) error {
 	if interval < minBatchInterval {
-		return errors.New("supplied batch interval is less than the minimum")
+		return fmt.Errorf("supplied batch interval, %dms, is less than the minimum, %dms", interval.Milliseconds(), minBatchInterval.Milliseconds())
 	}
 
 	c.setBatchInterval(interval)
 	return nil
+}
+
+// SetErrorHandler adds a function to be run every time there is an error
+// sending logs to CloudWatch.
+func (c *CloudWatchWriter) SetErrorHandler(handler func(error)) {
+	c.setErrorHandler(handler)
 }
 
 func (c *CloudWatchWriter) setBatchInterval(interval time.Duration) {
@@ -108,6 +116,30 @@ func (c *CloudWatchWriter) getBatchInterval() time.Duration {
 	defer c.RUnlock()
 
 	return c.batchInterval
+}
+
+func (c *CloudWatchWriter) setErrorHandler(handler func(error)) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.errorHandler = handler
+}
+
+func (c *CloudWatchWriter) handleError(err error) {
+	if err == nil {
+		return
+	}
+	if errHandler := c.getErrorHandler(); errHandler != nil {
+		errHandler(err)
+	}
+	c.setErr(err)
+}
+
+func (c *CloudWatchWriter) getErrorHandler() func(error) {
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.errorHandler
 }
 
 func (c *CloudWatchWriter) setErr(err error) {
@@ -213,7 +245,7 @@ func (c *CloudWatchWriter) queueMonitor() {
 
 // Only allow 1 retry of an invalid sequence token.
 func (c *CloudWatchWriter) sendBatch(batch []*cloudwatchlogs.InputLogEvent, retryNum int) {
-	if retryNum > 1 || len(batch) == 0 {
+	if len(batch) == 0 {
 		return
 	}
 
@@ -228,10 +260,14 @@ func (c *CloudWatchWriter) sendBatch(batch []*cloudwatchlogs.InputLogEvent, retr
 	if err != nil {
 		if invalidSequenceTokenErr, ok := err.(*cloudwatchlogs.InvalidSequenceTokenException); ok {
 			c.setNextSequenceToken(invalidSequenceTokenErr.ExpectedSequenceToken)
+			if retryNum >= 1 {
+				c.handleError(err)
+				return
+			}
 			c.sendBatch(batch, retryNum+1)
 			return
 		}
-		c.setErr(err)
+		c.handleError(err)
 		return
 	}
 	c.setNextSequenceToken(output.NextSequenceToken)

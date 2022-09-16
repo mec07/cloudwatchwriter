@@ -528,3 +528,58 @@ func TestCloudWatchWriterReceiveInvalidSequenceTokenException(t *testing.T) {
 	}
 	assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
 }
+
+type protectedObject struct {
+	sync.Mutex
+	haveBeenCalled bool
+}
+
+func (p *protectedObject) setCalled() {
+	p.Lock()
+	defer p.Unlock()
+
+	p.haveBeenCalled = true
+}
+
+func (p *protectedObject) getCalled() bool {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.haveBeenCalled
+}
+
+func TestCloudWatchWriterErrorHandler(t *testing.T) {
+	objectUnderObservation := protectedObject{}
+	handler := func(error) {
+		objectUnderObservation.setCalled()
+	}
+
+	client := &mockClient{
+		putLogEventsShouldError: true,
+	}
+
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	if err != nil {
+		t.Fatalf("NewWithClient: %v", err)
+	}
+	defer cloudWatchWriter.Close()
+
+	cloudWatchWriter.SetErrorHandler(handler)
+
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
+
+	aLog := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message",
+		Filename: "filename",
+		Port:     666,
+	}
+
+	helperWriteLogs(t, cloudWatchWriter, aLog)
+
+	// give the cloudWatchWriter time to call PutLogEvents
+	time.Sleep(201 * time.Millisecond)
+
+	assert.True(t, objectUnderObservation.getCalled())
+}
