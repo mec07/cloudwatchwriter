@@ -292,12 +292,12 @@ func TestCloudWatchWriterBatchInterval(t *testing.T) {
 	helperWriteLogs(t, cloudWatchWriter, aLog)
 
 	startTime := time.Now()
-	if err := client.waitForLogs(1, 302*time.Millisecond); err != nil {
+	if err := client.waitForLogs(1, 303*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 	timeTaken := time.Since(startTime)
-	if timeTaken < 299*time.Millisecond {
-		t.Fatalf("expected batch interval time to be 300 milliseconds (error of a millisecond or two), found: %dms", timeTaken.Milliseconds())
+	if timeTaken < 297*time.Millisecond {
+		t.Fatalf("expected batch interval time to be within 1 percent of 300 milliseconds, found: %dms", timeTaken.Milliseconds())
 	}
 }
 
