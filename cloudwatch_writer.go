@@ -126,9 +126,6 @@ func (c *CloudWatchWriter) setErrorHandler(handler func(error)) {
 }
 
 func (c *CloudWatchWriter) handleError(err error) {
-	if err == nil {
-		return
-	}
 	if errHandler := c.getErrorHandler(); errHandler != nil {
 		errHandler(err)
 	}
