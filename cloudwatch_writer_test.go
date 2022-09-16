@@ -274,7 +274,7 @@ func TestCloudWatchWriterBatchInterval(t *testing.T) {
 	}
 
 	// setting it to a value greater than or equal to 200 is OK
-	err = cloudWatchWriter.SetBatchInterval(200 * time.Millisecond)
+	err = cloudWatchWriter.SetBatchInterval(300 * time.Millisecond)
 	if err != nil {
 		t.Fatalf("CloudWatchWriter.SetBatchInterval: %v", err)
 	}
@@ -291,17 +291,14 @@ func TestCloudWatchWriterBatchInterval(t *testing.T) {
 
 	helperWriteLogs(t, cloudWatchWriter, aLog)
 
-	// The client shouldn't have received any logs at this time
-	assert.Equal(t, 0, client.numLogs())
-
-	// Still no logs after 100 milliseconds
-	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, 0, client.numLogs())
-
-	// The client should have received the log after another 101 milliseconds
-	// (as that is a total sleep time of 201 milliseconds)
-	time.Sleep(101 * time.Millisecond)
-	assert.Equal(t, 1, client.numLogs())
+	startTime := time.Now()
+	if err := client.waitForLogs(1, 302*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	timeTaken := time.Since(startTime)
+	if timeTaken < 299*time.Millisecond {
+		t.Fatalf("expected batch interval time to be 300 milliseconds (error of a millisecond or two), found: %dms", timeTaken.Milliseconds())
+	}
 }
 
 // Hit the 1MB limit on batch size of logs to trigger an earlier batch
