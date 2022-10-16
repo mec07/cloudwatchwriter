@@ -111,6 +111,16 @@ The batch interval is not guaranteed as two things can alter how often the batch
 - as soon as 1MB of logs or 10k logs have accumulated, they are sent (due to AWS restrictions on batch size);
 - we have to send the batches in sequence (an AWS restriction) so a long running request to CloudWatch can delay the next batch.
 
+#### Error Handler
+Sometimes there are problems communicating with CloudWatch and you may want to do something in these circumstances (e.g. you could even create a new writer, Close() the old one, and attach the new one to your logger).
+To facilitate user defined error handling you can set an error handler on the CloudWatchWriter:
+```
+cloudWatchWriter.SetErrorHandler(func(err error) {
+	// do something
+})
+```
+
+
 ## Acknowledgements
 Much thanks has to go to the creator of `zerolog` (https://github.com/rs/zerolog), for creating such a good logger.
 Thanks must go to the writer of `logrus-cloudwatchlogs` (https://github.com/kdar/logrus-cloudwatchlogs) as I found it a helpful resource for interfacing with `cloudwatchlogs`.

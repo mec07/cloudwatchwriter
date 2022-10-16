@@ -251,7 +251,7 @@ func TestCloudWatchWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = client.waitForLogs(2, 201*time.Millisecond); err != nil {
+	if err = client.waitForLogs(2, 210*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 
@@ -274,7 +274,7 @@ func TestCloudWatchWriterBatchInterval(t *testing.T) {
 	}
 
 	// setting it to a value greater than or equal to 200 is OK
-	err = cloudWatchWriter.SetBatchInterval(200 * time.Millisecond)
+	err = cloudWatchWriter.SetBatchInterval(300 * time.Millisecond)
 	if err != nil {
 		t.Fatalf("CloudWatchWriter.SetBatchInterval: %v", err)
 	}
@@ -291,17 +291,14 @@ func TestCloudWatchWriterBatchInterval(t *testing.T) {
 
 	helperWriteLogs(t, cloudWatchWriter, aLog)
 
-	// The client shouldn't have received any logs at this time
-	assert.Equal(t, 0, client.numLogs())
-
-	// Still no logs after 100 milliseconds
-	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, 0, client.numLogs())
-
-	// The client should have received the log after another 101 milliseconds
-	// (as that is a total sleep time of 201 milliseconds)
-	time.Sleep(101 * time.Millisecond)
-	assert.Equal(t, 1, client.numLogs())
+	startTime := time.Now()
+	if err := client.waitForLogs(1, 310*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	timeTaken := time.Since(startTime)
+	if timeTaken < 290*time.Millisecond {
+		t.Fatalf("expected batch interval time to be approximately 300 milliseconds, found: %dms", timeTaken.Milliseconds())
+	}
 }
 
 // Hit the 1MB limit on batch size of logs to trigger an earlier batch
@@ -334,7 +331,7 @@ func TestCloudWatchWriterHit1MBLimit(t *testing.T) {
 	// so much data
 	assert.True(t, client.numLogs() > 0)
 
-	if err = client.waitForLogs(numLogs, 400*time.Millisecond); err != nil {
+	if err = client.waitForLogs(numLogs, 210*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 
@@ -381,7 +378,7 @@ func TestCloudWatchWriterHit10kLimit(t *testing.T) {
 	// so many logs
 	assert.True(t, client.numLogs() > 0)
 
-	if err = client.waitForLogs(numLogs, 200*time.Millisecond); err != nil {
+	if err = client.waitForLogs(numLogs, 210*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 
@@ -518,7 +515,7 @@ func TestCloudWatchWriterReceiveInvalidSequenceTokenException(t *testing.T) {
 	logs.addLog(log)
 
 	// Result
-	if err = client.waitForLogs(1, 201*time.Millisecond); err != nil {
+	if err = client.waitForLogs(1, 210*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 
@@ -527,4 +524,59 @@ func TestCloudWatchWriterReceiveInvalidSequenceTokenException(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
+}
+
+type protectedObject struct {
+	sync.Mutex
+	haveBeenCalled bool
+}
+
+func (p *protectedObject) setCalled() {
+	p.Lock()
+	defer p.Unlock()
+
+	p.haveBeenCalled = true
+}
+
+func (p *protectedObject) getCalled() bool {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.haveBeenCalled
+}
+
+func TestCloudWatchWriterErrorHandler(t *testing.T) {
+	objectUnderObservation := protectedObject{}
+	handler := func(error) {
+		objectUnderObservation.setCalled()
+	}
+
+	client := &mockClient{
+		putLogEventsShouldError: true,
+	}
+
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	if err != nil {
+		t.Fatalf("NewWithClient: %v", err)
+	}
+	defer cloudWatchWriter.Close()
+
+	cloudWatchWriter.SetErrorHandler(handler)
+
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
+
+	aLog := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message",
+		Filename: "filename",
+		Port:     666,
+	}
+
+	helperWriteLogs(t, cloudWatchWriter, aLog)
+
+	// give the cloudWatchWriter time to call PutLogEvents
+	time.Sleep(201 * time.Millisecond)
+
+	assert.True(t, objectUnderObservation.getCalled())
 }
