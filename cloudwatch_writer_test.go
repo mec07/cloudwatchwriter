@@ -581,34 +581,32 @@ func TestCloudWatchWriterErrorHandler(t *testing.T) {
 	assert.True(t, objectUnderObservation.getCalled())
 }
 
-// TestCloudWatchWriterCloseBug there seems to be a bug on closing the logger
-// and it getting locked up. I'm trying to reproduce it.
-func TestCloudWatchWriterCloseBug(t *testing.T) {
-	for i := 0; i < 100; i++ {
-		client := &mockClient{}
-		cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
-		if err != nil {
-			t.Fatalf("NewWithClient: %v", err)
-		}
-
-		// give the queueMonitor goroutine time to start up
-		time.Sleep(time.Millisecond)
-
-		numLogs := 100
-		expectedLogs := make([]*cloudwatchlogs.InputLogEvent, numLogs)
-		for j := 0; j < numLogs; j++ {
-			message := fmt.Sprintf("hello %d", j)
-			_, err = cloudWatchWriter.Write([]byte(message))
-			if err != nil {
-				t.Fatalf("cloudWatchWriter.Write: %v", err)
-			}
-			expectedLogs[j] = &cloudwatchlogs.InputLogEvent{
-				Message:   aws.String(message),
-				Timestamp: aws.Int64(time.Now().UTC().UnixNano() / int64(time.Millisecond)),
-			}
-		}
-
-		cloudWatchWriter.Close()
-		assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
+func TestCloudWatchWriterSendOnClose(t *testing.T) {
+	//for i := 0; i < 100; i++ {
+	client := &mockClient{}
+	cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+	if err != nil {
+		t.Fatalf("NewWithClient: %v", err)
 	}
+
+	// give the queueMonitor goroutine time to start up
+	time.Sleep(time.Millisecond)
+
+	numLogs := 10002
+	expectedLogs := make([]*cloudwatchlogs.InputLogEvent, numLogs)
+	for j := 0; j < numLogs; j++ {
+		message := fmt.Sprintf("hello %d", j)
+		_, err = cloudWatchWriter.Write([]byte(message))
+		if err != nil {
+			t.Fatalf("cloudWatchWriter.Write: %v", err)
+		}
+		expectedLogs[j] = &cloudwatchlogs.InputLogEvent{
+			Message:   aws.String(message),
+			Timestamp: aws.Int64(time.Now().UTC().UnixNano() / int64(time.Millisecond)),
+		}
+	}
+
+	cloudWatchWriter.Close()
+	assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
+	//}
 }
