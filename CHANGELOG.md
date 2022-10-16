@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2022-10-16
+
+### Added
+
+- More tests including tests to run on windows.
+
+### Fixed
+
+- There was a bug that meant we were sending logs far too often (fixed in the previous PR by zelch).
+- Made the tests more robust.
+
 ## [0.2.5] - 2022-09-16
 
 ### Added
