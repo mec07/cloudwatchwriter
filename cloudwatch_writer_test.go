@@ -476,7 +476,7 @@ func TestCloudWatchWriterReportError(t *testing.T) {
 	helperWriteLogs(t, cloudWatchWriter, log1)
 
 	// sleep until the batch should have been sent
-	time.Sleep(201 * time.Millisecond)
+	time.Sleep(211 * time.Millisecond)
 
 	_, err = cloudWatchWriter.Write([]byte("hello world"))
 	if err == nil {
@@ -576,7 +576,7 @@ func TestCloudWatchWriterErrorHandler(t *testing.T) {
 	helperWriteLogs(t, cloudWatchWriter, aLog)
 
 	// give the cloudWatchWriter time to call PutLogEvents
-	time.Sleep(201 * time.Millisecond)
+	time.Sleep(211 * time.Millisecond)
 
 	assert.True(t, objectUnderObservation.getCalled())
 }
