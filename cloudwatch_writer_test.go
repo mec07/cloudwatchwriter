@@ -601,7 +601,12 @@ func TestCloudWatchWriterSendOnClose(t *testing.T) {
 			}
 		}
 
+		startTime := time.Now()
 		cloudWatchWriter.Close()
+		duration := time.Since(startTime)
+		if duration >= 200*time.Millisecond {
+			t.Fatal("close sends all the messages straight away so should not have to wait for the next batch")
+		}
 		assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
 	}
 }
