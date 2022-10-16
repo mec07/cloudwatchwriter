@@ -357,7 +357,7 @@ func TestCloudWatchWriterHit10kLimit(t *testing.T) {
 	time.Sleep(time.Millisecond)
 
 	var expectedLogs []*cloudwatchlogs.InputLogEvent
-	numLogs := 10000
+	numLogs := 10001
 	for i := 0; i < numLogs; i++ {
 		message := fmt.Sprintf("hello %d", i)
 		_, err = cloudWatchWriter.Write([]byte(message))
