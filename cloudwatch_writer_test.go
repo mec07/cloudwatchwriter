@@ -274,7 +274,7 @@ func TestCloudWatchWriterBatchInterval(t *testing.T) {
 	}
 
 	// setting it to a value greater than or equal to 200 is OK
-	err = cloudWatchWriter.SetBatchInterval(300 * time.Millisecond)
+	err = cloudWatchWriter.SetBatchInterval(201 * time.Millisecond)
 	if err != nil {
 		t.Fatalf("CloudWatchWriter.SetBatchInterval: %v", err)
 	}
@@ -292,12 +292,12 @@ func TestCloudWatchWriterBatchInterval(t *testing.T) {
 	helperWriteLogs(t, cloudWatchWriter, aLog)
 
 	startTime := time.Now()
-	if err := client.waitForLogs(1, 310*time.Millisecond); err != nil {
+	if err := client.waitForLogs(1, 210*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 	timeTaken := time.Since(startTime)
-	if timeTaken < 290*time.Millisecond {
-		t.Fatalf("expected batch interval time to be approximately 300 milliseconds, found: %dms", timeTaken.Milliseconds())
+	if timeTaken < 190*time.Millisecond {
+		t.Fatalf("expected batch interval time to be approximately 200 milliseconds, found: %dms", timeTaken.Milliseconds())
 	}
 }
 
@@ -581,69 +581,10 @@ func TestCloudWatchWriterErrorHandler(t *testing.T) {
 	assert.True(t, objectUnderObservation.getCalled())
 }
 
+// TestCloudWatchWriterCloseBug there seems to be a bug on closing the logger
+// and it getting locked up. I'm trying to reproduce it.
 func TestCloudWatchWriterCloseBug(t *testing.T) {
 	client := &mockClient{}
-
-	log0 := exampleLog{
-		Time:     "2009-11-10T23:00:02.043123061Z",
-		Message:  "Test message 0",
-		Filename: "filename",
-		Port:     666,
-	}
-	log1 := exampleLog{
-		Time:     "2009-11-10T23:00:02.043123061Z",
-		Message:  "Test message 1",
-		Filename: "filename",
-		Port:     666,
-	}
-	log2 := exampleLog{
-		Time:     "2009-11-10T23:00:02.043123061Z",
-		Message:  "Test message 2",
-		Filename: "filename",
-		Port:     666,
-	}
-	log3 := exampleLog{
-		Time:     "2009-11-10T23:00:02.043123061Z",
-		Message:  "Test message 3",
-		Filename: "filename",
-		Port:     666,
-	}
-	log4 := exampleLog{
-		Time:     "2009-11-10T23:00:02.043123061Z",
-		Message:  "Test message 4",
-		Filename: "filename",
-		Port:     666,
-	}
-	log5 := exampleLog{
-		Time:     "2009-11-10T23:00:02.043123061Z",
-		Message:  "Test message 5",
-		Filename: "filename",
-		Port:     666,
-	}
-	log6 := exampleLog{
-		Time:     "2009-11-10T23:00:02.043123061Z",
-		Message:  "Test message 6",
-		Filename: "filename",
-		Port:     666,
-	}
-	log7 := exampleLog{
-		Time:     "2009-11-10T23:00:02.043123061Z",
-		Message:  "Test message 7",
-		Filename: "filename",
-		Port:     666,
-	}
-	log8 := exampleLog{
-		Time:     "2009-11-10T23:00:02.043123061Z",
-		Message:  "Test message 8",
-		Filename: "filename",
-		Port:     666,
-	}
-	log9 := exampleLog{
-		Time:     "2009-11-10T23:00:02.043123061Z",
-		Message:  "Test message 9",
-		Filename: "filename",
-		Port:     666,
-	}
 
 	for i := 0; i < 100; i++ {
 		cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
@@ -651,20 +592,21 @@ func TestCloudWatchWriterCloseBug(t *testing.T) {
 			t.Fatalf("NewWithClient: %v", err)
 		}
 
-		helperWriteLogs(t, cloudWatchWriter, log1, log2, log3, log4)
-
-		logs := logsContainer{}
-		logs.addLog(log0)
-		logs.addLog(log1)
-		logs.addLog(log2)
-		logs.addLog(log3)
-		logs.addLog(log4)
-		logs.addLog(log5)
-		logs.addLog(log6)
-		logs.addLog(log7)
-		logs.addLog(log8)
-		logs.addLog(log9)
+		var expectedLogs []*cloudwatchlogs.InputLogEvent
+		numLogs := 100
+		for i := 0; i < numLogs; i++ {
+			message := fmt.Sprintf("hello %d", i)
+			_, err = cloudWatchWriter.Write([]byte(message))
+			if err != nil {
+				t.Fatalf("cloudWatchWriter.Write: %v", err)
+			}
+			expectedLogs = append(expectedLogs, &cloudwatchlogs.InputLogEvent{
+				Message:   aws.String(message),
+				Timestamp: aws.Int64(time.Now().UTC().UnixNano() / int64(time.Millisecond)),
+			})
+		}
 
 		cloudWatchWriter.Close()
+		assertEqualLogMessages(t, expectedLogs, client.getLogEvents())
 	}
 }
