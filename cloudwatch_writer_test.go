@@ -591,6 +591,9 @@ func TestCloudWatchWriterCloseBug(t *testing.T) {
 			t.Fatalf("NewWithClient: %v", err)
 		}
 
+		// give the queueMonitor goroutine time to start up
+		time.Sleep(time.Millisecond)
+
 		numLogs := 100
 		expectedLogs := make([]*cloudwatchlogs.InputLogEvent, numLogs)
 		for j := 0; j < numLogs; j++ {
