@@ -593,16 +593,16 @@ func TestCloudWatchWriterCloseBug(t *testing.T) {
 
 		numLogs := 100
 		expectedLogs := make([]*cloudwatchlogs.InputLogEvent, numLogs)
-		for i := 0; i < numLogs; i++ {
-			message := fmt.Sprintf("hello %d", i)
+		for j := 0; j < numLogs; j++ {
+			message := fmt.Sprintf("hello %d", j)
 			_, err = cloudWatchWriter.Write([]byte(message))
 			if err != nil {
 				t.Fatalf("cloudWatchWriter.Write: %v", err)
 			}
-			expectedLogs = append(expectedLogs, &cloudwatchlogs.InputLogEvent{
+			expectedLogs[j] = &cloudwatchlogs.InputLogEvent{
 				Message:   aws.String(message),
 				Timestamp: aws.Int64(time.Now().UTC().UnixNano() / int64(time.Millisecond)),
-			})
+			}
 		}
 
 		cloudWatchWriter.Close()
