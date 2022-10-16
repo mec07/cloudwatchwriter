@@ -120,7 +120,7 @@ func (c *mockClient) waitForLogs(numberOfLogs int, timeout time.Duration) error 
 		}
 
 		if time.Now().After(endTime) {
-			return errors.New("ran out of time waiting for logs")
+			return fmt.Errorf("ran out of time waiting for logs, received %d messages so far", c.numLogs())
 		}
 
 		time.Sleep(time.Millisecond)
