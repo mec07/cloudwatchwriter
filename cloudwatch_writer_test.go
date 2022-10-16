@@ -367,7 +367,7 @@ func TestCloudWatchWriterHit10kLimit(t *testing.T) {
 
 	// give the queueMonitor goroutine time to catch-up (sleep is far less than
 	// the minimum of 200 milliseconds)
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 
 	// Main assertion is that we are triggering a batch early as we're sending
 	// so many logs
