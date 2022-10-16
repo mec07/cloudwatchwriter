@@ -587,7 +587,7 @@ func TestCloudWatchWriterSendOnClose(t *testing.T) {
 		// give the queueMonitor goroutine time to start up
 		time.Sleep(time.Millisecond)
 
-		numLogs := 10002
+		numLogs := 100
 		expectedLogs := make([]*cloudwatchlogs.InputLogEvent, numLogs)
 		for j := 0; j < numLogs; j++ {
 			message := fmt.Sprintf("hello %d", j)
