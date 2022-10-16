@@ -580,3 +580,91 @@ func TestCloudWatchWriterErrorHandler(t *testing.T) {
 
 	assert.True(t, objectUnderObservation.getCalled())
 }
+
+func TestCloudWatchWriterCloseBug(t *testing.T) {
+	client := &mockClient{}
+
+	log0 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 0",
+		Filename: "filename",
+		Port:     666,
+	}
+	log1 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 1",
+		Filename: "filename",
+		Port:     666,
+	}
+	log2 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 2",
+		Filename: "filename",
+		Port:     666,
+	}
+	log3 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 3",
+		Filename: "filename",
+		Port:     666,
+	}
+	log4 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 4",
+		Filename: "filename",
+		Port:     666,
+	}
+	log5 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 5",
+		Filename: "filename",
+		Port:     666,
+	}
+	log6 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 6",
+		Filename: "filename",
+		Port:     666,
+	}
+	log7 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 7",
+		Filename: "filename",
+		Port:     666,
+	}
+	log8 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 8",
+		Filename: "filename",
+		Port:     666,
+	}
+	log9 := exampleLog{
+		Time:     "2009-11-10T23:00:02.043123061Z",
+		Message:  "Test message 9",
+		Filename: "filename",
+		Port:     666,
+	}
+
+	for i := 0; i < 100; i++ {
+		cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
+		if err != nil {
+			t.Fatalf("NewWithClient: %v", err)
+		}
+
+		helperWriteLogs(t, cloudWatchWriter, log1, log2, log3, log4)
+
+		logs := logsContainer{}
+		logs.addLog(log0)
+		logs.addLog(log1)
+		logs.addLog(log2)
+		logs.addLog(log3)
+		logs.addLog(log4)
+		logs.addLog(log5)
+		logs.addLog(log6)
+		logs.addLog(log7)
+		logs.addLog(log8)
+		logs.addLog(log9)
+
+		cloudWatchWriter.Close()
+	}
+}
