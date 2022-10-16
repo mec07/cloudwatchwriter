@@ -584,9 +584,8 @@ func TestCloudWatchWriterErrorHandler(t *testing.T) {
 // TestCloudWatchWriterCloseBug there seems to be a bug on closing the logger
 // and it getting locked up. I'm trying to reproduce it.
 func TestCloudWatchWriterCloseBug(t *testing.T) {
-	client := &mockClient{}
-
 	for i := 0; i < 100; i++ {
+		client := &mockClient{}
 		cloudWatchWriter, err := cloudwatchwriter.NewWithClient(client, 200*time.Millisecond, "logGroup", "logStream")
 		if err != nil {
 			t.Fatalf("NewWithClient: %v", err)
