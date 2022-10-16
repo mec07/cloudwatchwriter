@@ -592,8 +592,8 @@ func TestCloudWatchWriterCloseBug(t *testing.T) {
 			t.Fatalf("NewWithClient: %v", err)
 		}
 
-		var expectedLogs []*cloudwatchlogs.InputLogEvent
 		numLogs := 100
+		expectedLogs := make([]*cloudwatchlogs.InputLogEvent, numLogs)
 		for i := 0; i < numLogs; i++ {
 			message := fmt.Sprintf("hello %d", i)
 			_, err = cloudWatchWriter.Write([]byte(message))
