@@ -17,7 +17,7 @@ There are two exceptions to that:
 
 ### Standard use case
 If you want zerolog to send all logs to CloudWatch then do the following:
-```
+```golang
 import (
 	"fmt"
 
@@ -58,7 +58,7 @@ func setupZerolog(accessKeyID, secretKey string) (func(), error) {
 If you want to ensure that all your logs are sent to CloudWatch during the shut down sequence of your program then you can `defer` the `cloudWatchWriter.Close()` function in main.
 The `Close()` function blocks until all the logs have been processed.
 If you prefer to use AWS IAM credentials that are saved in the usual location on your computer then you don't have to specify the credentials, e.g.:
-```
+```golang
 sess, err := session.NewSession(&aws.Config{
     Region:      aws.String(region),
 })
@@ -68,7 +68,7 @@ See the example directory for a working example.
 
 ### Write to CloudWatch and the console
 What I personally prefer is to write to both CloudWatch and the console, e.g.
-```
+```golang
 cloudWatchWriter, err := cloudwatchwriter.New(sess, logGroupName, logStreamName)
 if err != nil {
     return fmt.Errorf("cloudwatchwriter.New: %w", err)
@@ -79,7 +79,7 @@ log.Logger = log.Output(zerolog.MultiLevelWriter(consoleWriter, cloudWatchWriter
 
 ### Create a new zerolog Logger
 Of course, you can create a new `zerolog.Logger` using this too:
-```
+```golang
 cloudWatchWriter, err := cloudwatchwriter.New(sess, logGroupName, logStreamName)
 if err != nil {
     return fmt.Errorf("cloudwatchwriter.New: %w", err)
@@ -87,7 +87,7 @@ if err != nil {
 logger := zerolog.New(cloudWatchWriter).With().Timestamp().Logger()
 ```
 and of course you can create a new `zerolog.Logger` which can write to both CloudWatch and the console:
-```
+```golang
 cloudWatchWriter, err := cloudwatchwriter.New(sess, logGroupName, logStreamName)
 if err != nil {
     return fmt.Errorf("cloudwatchwriter.New: %w", err)
@@ -103,7 +103,7 @@ The logs are sent in batches because AWS has a maximum of 5 PutLogEvents request
 The default value of the batch period is 5 seconds, which means it will send the a batch of logs at least once every 5 seconds.
 Batches of logs will be sent earlier if the size of the collected logs exceeds 1MB (another AWS restriction).
 To change the batch frequency, you can set the time interval between batches to a smaller or larger value, e.g. 1 second:
-```
+```golang
 err := cloudWatchWriter.SetBatchInterval(time.Second)
 ```
 If you set it below 200 milliseconds it will return an error.
@@ -114,7 +114,7 @@ The batch interval is not guaranteed as two things can alter how often the batch
 #### Error Handler
 Sometimes there are problems communicating with CloudWatch and you may want to do something in these circumstances (e.g. you could even create a new writer, Close() the old one, and attach the new one to your logger).
 To facilitate user defined error handling you can set an error handler on the CloudWatchWriter:
-```
+```golang
 cloudWatchWriter.SetErrorHandler(func(err error) {
 	// do something
 })
