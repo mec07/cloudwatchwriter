@@ -9,8 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	lane "github.com/oleiade/lane/v2"
 	"github.com/pkg/errors"
-	"gopkg.in/oleiade/lane.v1"
 )
 
 const (
@@ -46,7 +46,7 @@ type CloudWatchWriter struct {
 	sync.RWMutex
 	client            CloudWatchLogsClient
 	batchInterval     time.Duration
-	queue             *lane.Queue
+	queue             *lane.Queue[*cloudwatchlogs.InputLogEvent]
 	err               error
 	logGroupName      *string
 	logStreamName     *string
@@ -65,7 +65,7 @@ func New(sess *session.Session, logGroupName, logStreamName string) (*CloudWatch
 func NewWithClient(client CloudWatchLogsClient, batchInterval time.Duration, logGroupName, logStreamName string) (*CloudWatchWriter, error) {
 	writer := &CloudWatchWriter{
 		client:        client,
-		queue:         lane.NewQueue(),
+		queue:         lane.NewQueue[*cloudwatchlogs.InputLogEvent](),
 		logGroupName:  aws.String(logGroupName),
 		logStreamName: aws.String(logStreamName),
 		done:          make(chan struct{}),
@@ -198,8 +198,8 @@ func (c *CloudWatchWriter) queueMonitor() {
 			nextSendTime = time.Now().Add(c.getBatchInterval())
 		}
 
-		item := c.queue.Dequeue()
-		if item == nil {
+		logEvent, ok := c.queue.Dequeue()
+		if !ok || logEvent == nil {
 			// Empty queue, means no logs to process
 			if c.isClosing() {
 				c.sendBatch(batch, 0)
@@ -209,12 +209,6 @@ func (c *CloudWatchWriter) queueMonitor() {
 				return
 			}
 			time.Sleep(time.Millisecond)
-			continue
-		}
-
-		logEvent, ok := item.(*cloudwatchlogs.InputLogEvent)
-		if !ok || logEvent.Message == nil {
-			// This should not happen!
 			continue
 		}
 
