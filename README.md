@@ -1,3 +1,7 @@
+# DEPRECATED
+
+Please use this fork which has fixed some performance issues and updated to the AWS SDK V2: https://github.com/lzap/cloudwatchwriter2.
+
 # cloudwatchwriter
 Package to enable sending logs from zerolog to AWS CloudWatch.
 
